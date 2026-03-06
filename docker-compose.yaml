@@ -1,0 +1,165 @@
+# =========================================================================
+# Project:
+# - 2nd Project
+#
+# Module:
+# - docker
+#
+# File: docker-compose.yml
+#
+# Purpose:
+# - 여러 Docker 이미지를 하나의 환경으로 묶어 관리하기 위한 설정 파일
+# - 컨테이너 빌드 순서 및 의존 관계 정의
+#
+# Author: 조동휘
+# Created: 2026-03-06
+#
+# Updated:
+# - 2026-03-06: initial version (조동휘)
+# - 2026-03-06: Issue #9 대응 - ml_cpu / pipeline JupyterLab 개발 환경 구성 (조동휘)
+# =========================================================================
+
+# name Compose 이름 지정
+# - 추후에 프로젝트 명 결정 시 교체 예정
+name: 2nd_project
+
+# services: Compose에서 관리할 컨테이너 목록 정의
+services:
+
+  # -----------------------------------------------------------------------
+  # python_base
+  # Python 기반 공통 베이스 이미지 생성
+  # 다른 컨테이너(ML, pipeline 등)에서 공통 Python 환경으로 사용
+  # -----------------------------------------------------------------------
+  python_base:
+
+    # build: Dockerfile을 이용해 이미지를 빌드
+    build:
+      # context: Docker build가 실행되는 기준 경로
+      context: docker/base
+      # dockerfile: 사용할 Dockerfile 위치
+      dockerfile: Dockerfile
+
+    # image: 빌드된 이미지를 저장할 이름과 태그
+    image: 2nd_py_base:py312
+
+
+  # -----------------------------------------------------------------------
+  # mysql
+  # MySQL 데이터베이스 컨테이너
+  # ML 파이프라인에서 전처리 완료 데이터를 저장하기 위한 DB
+  # -----------------------------------------------------------------------
+  mysql:
+
+    # DB 이미지 빌드
+    build:
+      context: docker/database
+      dockerfile: Dockerfile
+
+    # container_name: 실행될 컨테이너 이름 지정
+    container_name: 2nd_mysql_db
+
+    # environment: 컨테이너 실행 시 전달되는 환경 변수
+    environment:
+      # MySQL root 계정 비밀번호
+      MYSQL_ROOT_PASSWORD: 1234
+
+    # ports: 호스트와 컨테이너 간 포트 연결
+    # host:container
+    ports:
+      - "13306:3306"
+
+    # volumes: 데이터 영구 저장을 위한 Docker 볼륨
+    # DB 데이터가 컨테이너 삭제 후에도 유지됨
+    volumes:
+      - 2nd_mysql_data:/var/lib/mysql
+
+
+  # -----------------------------------------------------------------------
+  # ml_cpu
+  # 머신러닝 CPU 개발 환경 컨테이너
+  # notebooks에서 모델 개발 및 EDA 수행
+  # -----------------------------------------------------------------------
+  ml_cpu:
+
+    # build: ML CPU 환경 이미지를 생성
+    build:
+      # context: ML CPU Dockerfile 위치
+      context: docker/ml/cpu
+      # dockerfile: ML CPU 환경 Dockerfile
+      dockerfile: Dockerfile
+
+    # container_name: 실행될 컨테이너 이름 지정
+    container_name: 2nd_ml-cpu
+
+    # volumes: 로컬 notebooks 폴더를 컨테이너에 마운트
+    volumes:
+      # 로컬 notebooks → 컨테이너 /app/notebooks
+      - ./notebooks:/app/notebooks
+
+    # working_dir: 컨테이너 기본 작업 디렉토리 설정
+    working_dir: /app/notebooks
+
+    # 터미널 및 표준 입력 유지
+    tty: true
+    stdin_open: true
+
+    # Jupyter 접속용 포트
+    ports:
+      - "18888:8888"
+
+    # JupyterLab 서버 실행
+    command: jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root
+
+    # depends_on: python_base 이미지가 먼저 빌드되도록 설정
+    depends_on:
+      - python_base
+
+
+  # -----------------------------------------------------------------------
+  # pipeline
+  # csv파일을 ETL과정을 통해서 데이터 베이스에 저장
+  # -----------------------------------------------------------------------
+  pipeline:
+
+    # build: pipeline 환경 이미지를 생성
+    build:
+      context: docker/pipeline
+      dockerfile: Dockerfile
+
+    # container_name: 실행될 컨테이너 이름 지정
+    container_name: 2nd_data_pipeline
+
+    # depends_on: mysql 및 python_base 이후 실행
+    depends_on:
+      - mysql
+      - python_base
+
+    # volumes: 로컬 pipeline 폴더를 컨테이너에 마운트
+    volumes:
+      - ./pipeline:/app/pipeline
+
+    # working_dir: 컨테이너 기본 작업 디렉토리 설정
+    working_dir: /app/pipeline
+
+    # 터미널 및 표준 입력 유지
+    tty: true
+    stdin_open: true
+
+    # Jupyter 접속용 포트
+    ports:
+      - "28888:8888"
+
+    # JupyterLab 서버 실행
+    command: jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root
+
+
+# -----------------------------------------------------------------------
+# volumes
+# Docker가 관리하는 영구 저장소
+# 컨테이너 삭제 후에도 데이터 유지
+# -----------------------------------------------------------------------
+volumes:
+
+  # MySQL 데이터 저장용 볼륨
+  2nd_mysql_data:

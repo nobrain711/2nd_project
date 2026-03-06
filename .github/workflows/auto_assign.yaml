@@ -1,0 +1,17 @@
+name: Auto Assign Issue
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  assign:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assign issue author
+        uses: pozil/auto-assign-issue@v1
+        with:
+          assignees: ${{ github.actor }}
