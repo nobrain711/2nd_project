@@ -17,6 +17,7 @@
 # Updated:
 # - 2026-03-06: initial version (조동휘)
 # - 2026-03-06: Issue #9 대응 - ml_cpu / pipeline JupyterLab 개발 환경 구성 (조동휘)
+# - 2026-03-07: MySQL Service에 초기 데이터베이스, 유저, table 생성 작업 (조동휘)
 # =========================================================================
 
 # name Compose 이름 지정
@@ -73,7 +74,7 @@ services:
     # DB 데이터가 컨테이너 삭제 후에도 유지됨
     volumes:
       - 2nd_mysql_data:/var/lib/mysql
-
+      - ./database/init:/docker-entrypoint-initdb.d:ro
 
   # -----------------------------------------------------------------------
   # ml_cpu
