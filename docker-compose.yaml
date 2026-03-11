@@ -21,6 +21,7 @@
 # - 2026-03-08: MySQL Service에 정상적으로 서버 동작 확인 작업 추가 (조동휘)
 # - 2026-03-08: Pipeline Service가 동작시 DB에 데이터 적재 생성 및 Jyputer lab 실행문 제거 (조동휘)
 # - 2026-03-08: compose 파일 수정 (python_base 이미지 빌드 및 각 서비스 build 경로 정리, mlflow와 streamlit 추가) 및 프로젝트 명 반영 (조동휘)
+# - 2026-03-08: compose 파일 수정 (.vscode local mount, notebooks syspath 이동) 및 작업자명을 github 이름으로 변경 (조동휘)
 # =========================================================================
 
 # name Compose 이름 지정
@@ -83,12 +84,11 @@ services:
 
     # mysql 컨테이너가 정상적으로 실행되었는지 확인하기 위한 healthcheck 설정
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      test: [ "CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent" ]
       interval: 5s
       timeout: 5s
       retries: 20
       start_period: 20s
-
 
   # -----------------------------------------------------------------------
   # mlflow
@@ -104,11 +104,12 @@ services:
 
     # container_name: 실행될 컨테이너 이름 지정
     container_name: ccc_project_mlflow
-    
+
     # volumes: MLflow 실험 결과 저장을 위한 볼륨 마운트와 개발을 위한 local mlflow 폴더 마운트
     volumes:
-      - ./artifacts:/mlflow/artifacts       # local mount for mlflow artifacts
-      - ccc_project_mlflow_db:/mlflow/db    # mlflow tracking 결과 저장용 볼륨
+      - ./artifacts:/mlflow/artifacts # local mount for mlflow artifacts
+      - ccc_project_mlflow_db:/mlflow/db # mlflow tracking 결과 저장용 볼륨
+      - ./.vscode:/app/.vscode:ro
 
     # 작업 디렉토리 설정
     working_dir: /app
@@ -120,10 +121,10 @@ services:
     # port 포워딩 설정
     ports:
       - "15000:5000"
-    
+
     # server 정상 실행 확인
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:5000/ || exit 1"]
+      test: [ "CMD-SHELL", "curl -f http://localhost:5000/ || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -131,15 +132,8 @@ services:
 
     # mlflow 서버 실행 명령
     command: >
-      bash -lc "
-      mlflow server
-      --host 0.0.0.0
-      --port 5000
-      --backend-store-uri sqlite:////mlflow/db/mlflow.db
-      --default-artifact-root /mlflow/artifacts
-      "
+      bash -lc " mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:////mlflow/db/mlflow.db --default-artifact-root /mlflow/artifacts "
 
-      
   # -----------------------------------------------------------------------
   # ml_cpu
   # 머신러닝 CPU 개발 환경 컨테이너
@@ -163,12 +157,14 @@ services:
       # 로컬 artifacts → 컨테이너 /app/artifacts (모델 저장 및 mlflow 연동)
       - ./notebooks:/app/notebooks
       - ./artifacts:/app/artifacts
+      - ./.vscode:/app/.vscode:ro
 
     # working_dir: 컨테이너 기본 작업 디렉토리 설정
     working_dir: /app/notebooks
 
     # environment: MLflow 추적 서버와 pipeline 서버 주소를 환경 변수로 전달
     environment:
+      - PYTHONPATH=/app/notebooks
       - MLFLOW_TRACKING_URI=http://mlflow:5000
       - PIPELINE_API_BASE_URL=http://pipeline:8000
 
@@ -181,7 +177,6 @@ services:
     # 터미널 및 표준 입력 유지
     tty: true
     stdin_open: true
-
 
   # -----------------------------------------------------------------------
   # pipeline
@@ -205,6 +200,7 @@ services:
     # volumes: 로컬 pipeline 폴더를 컨테이너에 마운트
     volumes:
       - ./pipeline:/app/pipeline
+      - ./.vscode:/app/.vscode:ro
 
     # working_dir: 컨테이너 기본 작업 디렉토리 설정
     working_dir: /app
@@ -215,7 +211,7 @@ services:
 
     # healthcheck: pipeline API 서버가 정상적으로 실행되었는지 확인하기 위한 healthcheck 설정
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health/z || exit 1"]
+      test: [ "CMD-SHELL", "curl -f http://localhost:8000/health/z || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -224,15 +220,12 @@ services:
     # pipeline ETL 실행 및 API 서버 실행 명령
     # - pipeline ETL 실행 후 API 서버 실행
     command: >
-      bash -lc "
-      python -m pipeline.run_etl &&
-      uvicorn pipeline.main:app --host 0.0.0.0 --port 8000"
+      bash -lc " python -m pipeline.run_etl && uvicorn pipeline.main:app --host 0.0.0.0 --port 8000"
 
-
-# ------------------------------------------------------------------------
-# streamlit
-# Streamlit 앱 실행을 위한 서비스
-# ------------------------------------------------------------------------
+  # ------------------------------------------------------------------------
+  # streamlit
+  # Streamlit 앱 실행을 위한 서비스
+  # ------------------------------------------------------------------------
   streamlit:
 
     # build: streamlit 환경 이미지를 생성
@@ -258,6 +251,7 @@ services:
     volumes:
       - ./streamlit:/app
       - ./artifacts:/app/artifacts
+      - ./.vscode:/app/.vscode:ro
 
     # working_dir: 컨테이너 기본 작업 디렉토리 설정
     working_dir: /app
@@ -266,20 +260,14 @@ services:
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
       - PIPELINE_API_BASE_URL=http://pipeline:8000
-    
+
     # 터미널 및 표준 입력 유지
     tty: true
     stdin_open: true
 
     # streamlit 앱 실행 명령
     command: >
-      bash -lc "
-      streamlit run app.py
-      --server.address=0.0.0.0
-      --server.port=8501
-      "
-
-
+      bash -lc " streamlit run app.py --server.address=0.0.0.0 --server.port=8501 "
 
 # -----------------------------------------------------------------------
 # volumes
