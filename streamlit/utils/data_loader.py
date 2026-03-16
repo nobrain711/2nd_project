@@ -21,20 +21,29 @@ Updated:
 =========================================================================
 """
 
-from pandas import DataFrame
 from typing import Dict, List
 
-from common.config import MLFLOW_EXPERIMENT_NAME, MLFLOW_TRACKING_URI
+from pandas import DataFrame
+
+from common.config import (
+    MLFLOW_EXPERIMENT_NAME,
+    MLFLOW_TRACKING_URI,
+    MODEL_NAME_MAP,
+)
+from common.fetch_creditcard import fetch_creditcard
 from common.mlflow.load_latest_scores_by_model import load_latest_scores_by_model
 
 
-MODEL_NAME_MAP = {
-    "hist_gradient_boosting": "HistGradientBoosting",
-    "xgboost_random_grid_search": "XGBoost",
-    "easy_ensemble_baseline": "EasyEnsemble",
-    "logistic_regression_baseline": "Logistic Regression",
-    "lightgbm_baseline": "LightGBM",
-}
+def get_feature_columns() -> list[str]:
+    """
+    예측 입력에 사용할 feature 컬럼 순서를 반환합니다.
+    """
+    df = fetch_creditcard(X_y_split=False)
+
+    excluded_columns = ["creditcard_churn_id", "churn"]
+    feature_columns = [col for col in df.columns if col not in excluded_columns]
+
+    return feature_columns
 
 
 def get_leaderboard_data() -> DataFrame:
@@ -67,33 +76,48 @@ def get_leaderboard_data() -> DataFrame:
     if leaderboard_data.empty:
         return leaderboard_data
 
-    leaderboard_data = leaderboard_data.sort_values(
+    return leaderboard_data.sort_values(
         by="ROC-AUC",
         ascending=False,
     ).reset_index(drop=True)
 
-    return leaderboard_data
 
-
-def get_impact_data() -> DataFrame:
+def get_impact_data(model_name: str) -> DataFrame:
     """
-    SHAP 예시용 feature 영향력 데이터를 반환합니다.
+    모델별 feature 영향력 예시 데이터를 반환합니다.
     """
-    impact_df = DataFrame(
-        {
-            "feature": [
-                "총 결제 금액",
-                "소득 구간",
-                "총 결제 횟수",
-                "한도 소진율",
-                "리볼빙 잔액",
-            ],
+    impact_map = {
+        "HistGradientBoosting": {
+            "feature": ["총 결제 금액", "소득 구간", "총 결제 횟수", "한도 소진율", "리볼빙 잔액"],
             "영향력": [0.55, 0.45, 0.38, 0.25, 0.18],
-        }
-    ).sort_values(by="영향력")
+        },
+        "XGBoost": {
+            "feature": ["총 결제 금액", "총 결제 횟수", "리볼빙 잔액", "소득 구간", "비활성 기간"],
+            "영향력": [0.51, 0.43, 0.34, 0.29, 0.21],
+        },
+        "EasyEnsemble": {
+            "feature": ["리볼빙 잔액", "비활성 기간", "고객센터 상담 횟수", "총 결제 금액", "총 결제 횟수"],
+            "영향력": [0.49, 0.42, 0.36, 0.28, 0.24],
+        },
+        "Logistic Regression": {
+            "feature": ["총 결제 금액", "한도 소진율", "리볼빙 잔액", "소득 구간", "총 결제 횟수"],
+            "영향력": [0.41, 0.35, 0.31, 0.24, 0.19],
+        },
+        "LightGBM": {
+            "feature": ["총 결제 금액", "총 결제 횟수", "소득 구간", "한도 소진율", "리볼빙 잔액"],
+            "영향력": [0.53, 0.44, 0.33, 0.27, 0.22],
+        },
+    }
 
-    return impact_df
+    selected = impact_map.get(
+        model_name,
+        {
+            "feature": ["총 결제 금액", "소득 구간", "총 결제 횟수", "한도 소진율", "리볼빙 잔액"],
+            "영향력": [0.55, 0.45, 0.38, 0.25, 0.18],
+        },
+    )
 
+    return DataFrame(selected).sort_values(by="영향력")
 
 def get_model_guides() -> Dict[str, List[str]]:
     """
@@ -111,7 +135,7 @@ def get_model_guides() -> Dict[str, List[str]]:
             "Logistic Regression 보조 활용",
         ],
         "EasyEnsemble": [
-            "이탈자 전수 탐지(Recall 0.98)",
+            "이탈자 전수 탐지(Recall 중심)",
             "마케팅 비용 낭비 우려",
             "LightGBM 기반 예산 효율화",
         ],

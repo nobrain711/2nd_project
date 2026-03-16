@@ -17,11 +17,14 @@ Created: 2026-03-13
 
 Updated:
 - 2026-03-13: initial version (@nobrain711)
+- 2026-03-16: default_state에 model 반영 (@nobrain711)
 =========================================================================
 """
 
-# streamlit session_stste function
 from streamlit import session_state
+
+from common.config import MODEL_NAME_LIST
+
 
 def init_session_state() -> None:
     """
@@ -30,7 +33,9 @@ def init_session_state() -> None:
     default_state = {
         "page": "Dashboard",
         "res_prob": 0.0,
-        "last_model": "HistGradientBoosting",
+        "last_model": MODEL_NAME_LIST[0],
+        "selected_model": MODEL_NAME_LIST[0],
+        "models": {},
     }
 
     for key, value in default_state.items():
