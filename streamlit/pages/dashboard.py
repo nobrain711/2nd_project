@@ -17,6 +17,7 @@ Created: 2026-03-13
 
 Updated:
 - 2026-03-13: initial version (@nobrain711)
+- 2026-03-13: dashborad 색상 반영 (@nobrain711)
 =========================================================================
 """
 
@@ -66,8 +67,11 @@ def render_dashboard_page() -> None:
     )
     dataframe(
         leaderboard_data.style.background_gradient(cmap="Blues", subset=["정확도(Acc)"])
+        .background_gradient(cmap="Purples", subset=["정밀도(Precision)"])
         .background_gradient(cmap="Oranges", subset=["재현율(Recall)"])
-        .background_gradient(cmap="Greens", subset=["ROC-AUC"]),
+        .background_gradient(cmap="Greens", subset=["ROC-AUC"])
+        .background_gradient(cmap="PuBuGn", subset=["PR-AUC"])
+        .background_gradient(cmap="Reds", subset=["F1-score"]),
         use_container_width=True,
         hide_index=True,
     )
